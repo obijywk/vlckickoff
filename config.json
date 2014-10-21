@@ -1,0 +1,25 @@
+{
+  "ExternalHost": "example.com",
+  "ListenHost": "192.168.1.2",
+  "WebPort": 9876,
+  "StreamPort": 9877,
+
+  "VideoWidth": 640,
+  "VideoHeight": 360,
+  "VideoBitrate": 600,
+  "AudioBitrate": 128,
+  "CaptureCacheMs": 2500,
+
+  "AuthRealm": "vlckickoff",
+  "AuthUser": "vlckickoff",
+  "AuthPass": "{SHA}w0mcJylzCn+AfvuGdqkty2+KP48=",
+
+  "Streams": [
+    {"Name": "CBS", "Url": "atsc://frequency=587000000"},
+		{"Name": "NBC", "Url": "atsc://frequency=557000000"},
+		{"Name": "FOX", "Url": "atsc://frequency=653000000"},
+		{"Name": "ABC", "Url": "atsc://frequency=177000000"},
+		{"Name": "PIX", "Url": "atsc://frequency=201000000"},
+		{"Name": "PBS", "Url": "atsc://frequency=213000000"}
+  ]
+}
