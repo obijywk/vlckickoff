@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"flag"
 	"fmt"
 	auth "github.com/abbot/go-http-auth"
 	"log"
@@ -20,6 +21,8 @@ type stream struct {
 }
 
 type settingsType struct {
+	StaticFilesPath string
+
 	ExternalHost string
 	ListenHost   string
 	WebPort      int
@@ -39,6 +42,8 @@ type settingsType struct {
 }
 
 var settings settingsType
+var settingsPath = flag.String("config", "config.json",
+	"Path of JSON config file")
 
 var vlcUrl chan string
 
@@ -159,7 +164,8 @@ func handleSettings(w http.ResponseWriter, req *http.Request) {
 }
 
 func main() {
-	configFile, err := os.Open("config.json")
+	flag.Parse()
+	configFile, err := os.Open(*settingsPath)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -175,7 +181,7 @@ func main() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/streams", handleStreams)
 	mux.HandleFunc("/settings", handleSettings)
-	mux.Handle("/", http.FileServer(http.Dir("static")))
+	mux.Handle("/", http.FileServer(http.Dir(settings.StaticFilesPath)))
 
 	var handler http.Handler
 	if settings.AuthRealm != "" && settings.AuthUser != "" && settings.AuthPass != "" {
