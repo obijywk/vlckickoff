@@ -158,6 +158,20 @@ func handleSettings(w http.ResponseWriter, req *http.Request) {
 			log.Fatal(err)
 		}
 		w.Write(enc)
+	} else if req.Method == "POST" {
+		newSettings := settingsType{}
+		if err := json.NewDecoder(req.Body).Decode(&newSettings); err != nil {
+			log.Print(err)
+			http.Error(w, err.Error(), 400)
+			return
+		}
+		settings.VideoWidth = newSettings.VideoWidth
+		settings.VideoHeight = newSettings.VideoHeight
+		settings.VideoBitrate = newSettings.VideoBitrate
+		settings.AudioBitrate = newSettings.AudioBitrate
+		settings.CaptureCacheMs = newSettings.CaptureCacheMs
+		vlcUrl <- ""
+		streamPost <- stream{}
 	} else {
 		http.Error(w, "Method not allowed", 405)
 	}

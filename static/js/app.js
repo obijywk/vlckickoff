@@ -22,7 +22,9 @@ app.factory('Settings', [
 
 app.controller('StreamListCtrl', [
   '$scope', 'Stream', 'Settings', function ($scope, Stream, Settings) {
-    $scope.settings = Settings.get();
+    $scope.settings = Settings.get(function() {
+      $scope.videoRes = $scope.settings.VideoWidth + 'x' + $scope.settings.VideoHeight;
+    });
     $scope.streams = Stream.query();
 
     $scope.activeStream = function() {
@@ -40,6 +42,13 @@ app.controller('StreamListCtrl', [
         stream.Active = stream == newActiveStream;
         stream.$save();
       });
+    }
+
+    $scope.changeSettings = function() {
+      var res = $scope.videoRes.split('x');
+      $scope.settings.VideoWidth = parseInt(res[0], 10);
+      $scope.settings.VideoHeight = parseInt(res[1], 10);
+      $scope.settings.$save();
     }
   }
 ]);

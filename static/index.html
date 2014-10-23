@@ -17,30 +17,78 @@
 
 <script src="js/app.js"></script>
 
+<style>
+.settings-form {
+  max-width: 400px;
+  padding: 15px;
+}
+.stream-list {
+  max-width: 400px;
+}
+.control-buttons {
+  max-width: 400px;
+}
+@media (max-width: 768px) {
+  .control-label {
+    padding-top: 7px;
+    margin-bottom: 0;
+    text-align: right;
+  }
+}
+</style>
+
 </head>
 <body ng-controller="StreamListCtrl">
-  <p class="col-xs-12 col-md-4 col-md-offset-4">
-    <a ng-href="intent://{{settings.ExternalHost}}:{{settings.StreamPort}}/#Intent;scheme=http;package=com.mxtech.videoplayer.pro;type=video/*;end"
-       class="btn btn-default" role="button"
-       ng-class="{disabled: activeStream() == null}">
-      <span class="glyphicon glyphicon-film"></span>
-      Watch
-    </a>
-    <a href="#" class="btn btn-default" role="button"
-       ng-class="{disabled: activeStream() == null}"
-       ng-click="switchStream(null)">
-      <span class="glyphicon glyphicon-remove"></span>
-      Stop
-    </a>
-  </p>
-  <div class="col-xs-12 col-md-4 col-md-offset-4 list-group">
-    <a href="#" class="list-group-item" ng-repeat="stream in streams"
-       ng-click="switchStream(stream)">
-      <span class="badge" ng-show="stream.Active">
+  <div class="container">
+    <form class="form-horizontal settings-form" role="form">
+      <div class="form-group" style="vertical-align: center;">
+        <label for="inputVideoBitrate" class="control-label col-xs-4">Video kbps</label>
+        <div class="col-xs-8">
+          <select id="inputVideoBitrate" class="form-control"
+                  ng-model="settings.VideoBitrate"
+                  ng-options="x for x in [400,600,800,1000,1500,2000]"
+                  ng-change="changeSettings()">
+          </select>
+        </div>
+      </div>
+      <div class="form-group">
+        <label for="inputVideoRes" class="control-label col-xs-4">Video WxH</label>
+        <div class="col-xs-8">
+          <select id="inputVideoRes" class="form-control"
+                  ng-model="videoRes" ng-change="changeSettings()">
+            <option value="480x270">480x270</option>
+            <option value="640x360">640x360</option>
+            <option value="960x540">960x540</option>
+            <option value="1280x720">1280x720</option>
+          </select>
+        </div>
+      </div>
+    </form>
+
+    <div class="list-group stream-list">
+      <a href="#" class="list-group-item" ng-repeat="stream in streams"
+         ng-click="switchStream(stream)">
+        <span class="badge" ng-show="stream.Active">
+          <span class="glyphicon glyphicon-film"></span>
+        </span>
+        {{stream.Name}}
+      </a>
+    </div>
+
+    <div class="control-buttons">
+      <a ng-href="intent://{{settings.ExternalHost}}:{{settings.StreamPort}}/#Intent;scheme=http;package=com.mxtech.videoplayer.pro;type=video/*;end"
+         class="btn btn-default" role="button"
+         ng-class="{disabled: activeStream() == null}">
         <span class="glyphicon glyphicon-film"></span>
-      </span>
-      {{stream.Name}}
-    </a>
+        Watch
+      </a>
+      <a href="#" class="btn btn-default" role="button"
+         ng-class="{disabled: activeStream() == null}"
+         ng-click="switchStream(null)">
+        <span class="glyphicon glyphicon-remove"></span>
+        Stop
+      </a>
+    </div>
   </div>
 </body>
 </html>
