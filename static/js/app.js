@@ -1,10 +1,10 @@
 'use strict';
 
 var app = angular.module('vlckickoffApp', [
-  'ngResource'
+  'ngResource', 'ng.deviceDetector'
 ]).config([
   '$compileProvider', function ($compileProvider) {
-    $compileProvider.aHrefSanitizationWhitelist(/^\s*(https?|ftp|mailto|intent):/);
+    $compileProvider.aHrefSanitizationWhitelist(/^\s*(https?|ftp|mailto|intent|javascript):/);
   }
 ]);
 
@@ -21,9 +21,19 @@ app.factory('Settings', [
 ]);
 
 app.controller('StreamListCtrl', [
-  '$scope', 'Stream', 'Settings', function ($scope, Stream, Settings) {
+  '$scope', 'Stream', 'Settings', 'detectUtils',
+  function ($scope, Stream, Settings, detectUtils) {
     $scope.settings = Settings.get(function() {
       $scope.videoRes = $scope.settings.VideoWidth + 'x' + $scope.settings.VideoHeight;
+      if (detectUtils.isAndroid()) {
+        $scope.watchUrl = "intent://" +
+          $scope.settings.ExternalHost +
+          ":" +
+          $scope.settings.StreamPort +
+          "/#Intent;scheme=http;type=video/mp2t;end";
+      } else {
+        $scope.watchUrl = "javascript:$('#watchModal').modal()";
+      }
     });
     $scope.streams = Stream.query();
 
