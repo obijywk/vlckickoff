@@ -10,6 +10,7 @@
 <link rel="import" href="bower_components/core-ajax/core-ajax.html">
 <link rel="import" href="bower_components/core-menu/core-menu.html">
 <link rel="import" href="bower_components/core-selector/core-selector.html">
+<link rel="import" href="bower_components/paper-dialog/paper-action-dialog.html">
 <link rel="import" href="bower_components/paper-button/paper-button.html">
 <link rel="import" href="bower_components/paper-dropdown/paper-dropdown.html">
 <link rel="import" href="bower_components/paper-dropdown-menu/paper-dropdown-menu.html">
@@ -106,6 +107,12 @@
         Stop
       </paper-button>
     </div>
+
+    <paper-action-dialog id="watchDialog" backdrop autoCloseDisabled>
+      <p>Copy the following URL into VLC (or another streaming app).</p>
+      <p>http://{{settings.ExternalHost}}:{{settings.StreamPort}}/</p>
+      <paper-button affirmative autofocus>Close</paper-button>
+    </paper-action-dialog>
   </template>
   <script>
     Polymer({
@@ -153,6 +160,15 @@
         this.$.postStream.go();
       },
       onWatch: function() {
+        if (/Android/.test(window.navigator.userAgent)) {
+          window.open("intent://" +
+              this.settings.ExternalHost +
+              ":" +
+              this.settings.StreamPort +
+              "/#Intent;scheme=http;type=video/mp2t;end");
+        } else {
+          this.$.watchDialog.toggle();
+        }
       },
       onStop: function() {
         this.selectedStreamIndex = null;
