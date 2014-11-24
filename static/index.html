@@ -8,8 +8,11 @@
 <script src="bower_components/webcomponentsjs/webcomponents.js"></script>
 <link rel="import" href="bower_components/polymer/polymer.html">
 <link rel="import" href="bower_components/core-ajax/core-ajax.html">
+<link rel="import" href="bower_components/core-menu/core-menu.html">
 <link rel="import" href="bower_components/core-selector/core-selector.html">
 <link rel="import" href="bower_components/paper-button/paper-button.html">
+<link rel="import" href="bower_components/paper-dropdown/paper-dropdown.html">
+<link rel="import" href="bower_components/paper-dropdown-menu/paper-dropdown-menu.html">
 <link rel="import" href="bower_components/paper-item/paper-item.html">
 <link rel="import" href="bower_components/paper-shadow/paper-shadow.html">
 
@@ -27,13 +30,57 @@
     paper-shadow {
       margin: 10px;
     }
-    paper-item {
+    paper-item.stream {
       border-bottom: thin solid #cccccc;
     }
-    paper-item.core-selected {
+    paper-item.stream.core-selected {
       background: #ccffcc;
     }
+    paper-dropdown-menu {
+      margin-top: 0px;
+      margin-bottom: 0px;
+      margin-left: 8px;
+      padding-top: 0px;
+      padding-bottom: 0px;
+    }
+    div.dropdown-pair {
+      margin-left: 10px;
+      margin-right: 10px;
+    }
     </style>
+
+    <core-ajax auto url="settings" handleAs="json" response="{{settings}}"
+               on-core-response="{{onSettingsResponse}}">
+    </core-ajax>
+    <core-ajax id="postSettings" url="settings" method="POST"></core-ajax>
+
+    <div horizontal layout class="dropdown-pair">
+      <span self-center flex>Video bitrate (Kbps)</span>
+      <paper-dropdown-menu self-center>
+        <paper-dropdown class="dropdown" halign="right">
+          <core-menu class="menu" selected="{{videoBitrate}}"
+                     valueattr="label">
+            <template repeat="{{videoBitrateOptions}}">
+              <paper-item label="{{}}">{{}}</paper-item>
+            </template>
+          </core-menu>
+        </paper-dropdown>
+      </paper-dropdown-menu>
+    </div>
+
+    <div horizontal layout class="dropdown-pair">
+      <span self-center flex>Video resolution</span>
+      <paper-dropdown-menu self-center>
+        <paper-dropdown class="dropdown" halign="right">
+          <core-menu class="menu" selected="{{videoResolution}}"
+                     valueattr="label">
+            <template repeat="{{videoResolutionOptions}}">
+              <paper-item label="{{}}">{{}}</paper-item>
+            </template>
+          </core-menu>
+        </paper-dropdown>
+      </paper-dropdown-menu>
+    </div>
 
     <core-ajax auto url="streams" handleAs="json" response="{{streams}}"
                on-core-response="{{onStreamsResponse}}">
@@ -41,20 +88,20 @@
     <core-ajax id="postStream" url="streams" method="POST"></core-ajax>
 
     <paper-shadow>
-      <core-selector id="streamSelector" selected="{{selectedIndex}}"
+      <core-selector id="streamSelector" selected="{{selectedStreamIndex}}"
                      on-core-select="{{onSelect}}">
         <template repeat="{{streams}}">
-          <paper-item noink>{{Name}}</paper-item>
+          <paper-item class="stream" noink>{{Name}}</paper-item>
         </template>
       </core-selector>
     </paper-shadow>
 
     <div horizontal around-justified layout>
-      <paper-button raised disabled?="{{selectedIndex == null}}"
+      <paper-button raised disabled?="{{selectedStreamIndex == null}}"
                     on-click="{{onWatch}}">
         Watch
       </paper-button>
-      <paper-button raised disabled?="{{selectedIndex == null}}"
+      <paper-button raised disabled?="{{selectedStreamIndex == null}}"
                     on-click="{{onStop}}">
         Stop
       </paper-button>
@@ -62,11 +109,40 @@
   </template>
   <script>
     Polymer({
+      created: function() {
+        this.videoBitrateOptions =
+            ['250','400','600','800','1000','1500','2000'];
+        this.videoResolutionOptions =
+            ['480x270','640x360','960x540','1280x720'];
+      },
+
+      onSettingsResponse: function(event, detail) {
+        this.videoBitrate = String(detail.response.VideoBitrate);
+        this.videoResolution =
+            detail.response.VideoWidth + 'x' + detail.response.VideoHeight;
+      },
+      videoBitrateChanged: function(oldValue, newValue) {
+        if (oldValue == undefined) return;
+        this.settings.VideoBitrate = parseInt(this.videoBitrate, 10);
+        this.uploadSettings();
+      },
+      videoResolutionChanged: function(oldValue, newValue) {
+        if (oldValue == undefined) return;
+        var res = this.videoResolution.split('x');
+        this.settings.VideoWidth = parseInt(res[0], 10);
+        this.settings.VideoHeight = parseInt(res[1], 10);
+        this.uploadSettings();
+      },
+      uploadSettings: function() {
+        this.$.postSettings.body = JSON.stringify(this.settings);
+        this.$.postSettings.go();
+      },
+
       onStreamsResponse: function(event, detail) {
         for (i in detail.response) {
           var stream = detail.response[i];
           if (stream.Active) {
-            this.selectedIndex = i;
+            this.selectedStreamIndex = i;
           }
         }
       },
@@ -79,7 +155,7 @@
       onWatch: function() {
       },
       onStop: function() {
-        this.selectedIndex = null;
+        this.selectedStreamIndex = null;
       },
     });
   </script>
