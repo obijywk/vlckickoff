@@ -48,6 +48,23 @@
       margin-left: 10px;
       margin-right: 10px;
     }
+    .channel-item {
+      width: 100%;
+    }
+    .name-text {
+      font-size: 16px;
+      width: 15%;
+    }
+    .program-container {
+      width: 85%;
+    }
+    .program-text {
+      font-size: 12px;
+      color: #404040;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
     </style>
 
     <core-ajax auto url="settings" handleAs="json" response="{{settings}}"
@@ -92,7 +109,15 @@
       <core-selector id="streamSelector" selected="{{selectedStreamIndex}}"
                      on-core-select="{{onSelect}}">
         <template repeat="{{streams}}">
-          <paper-item class="stream" noink>{{Name}}</paper-item>
+          <paper-item class="stream" noink>
+            <div horizontal layout class="channel-item">
+              <div self-center class="name-text">{{Name}}</div>
+              <div vertical layout self-center class="program-container">
+                <div class="program-text">{{PlayingTitle}}</div>
+                <div class="program-text">{{PlayingSubtitle}}</div>
+              </div>
+            </div>
+          </paper-item>
         </template>
       </core-selector>
     </paper-shadow>

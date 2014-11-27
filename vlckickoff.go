@@ -2,21 +2,29 @@ package main
 
 import (
 	"bytes"
+	"database/sql"
 	"encoding/json"
 	"flag"
 	"fmt"
 	auth "github.com/abbot/go-http-auth"
+	_ "github.com/go-sql-driver/mysql"
 	"log"
 	"net/http"
 	"os"
 	"os/exec"
+	"strconv"
 	"strings"
 	"text/template"
 )
 
 type stream struct {
-	Name   string
-	Url    string
+	Name       string
+	Url        string
+	MythChanId int
+
+	PlayingTitle    string
+	PlayingSubtitle string
+
 	Active bool
 }
 
@@ -38,12 +46,16 @@ type settingsType struct {
 	AuthUser  string
 	AuthPass  string
 
+	MythTVDSN string
+
 	Streams []*stream
 }
 
 var settings settingsType
 var settingsPath = flag.String("config", "config.json",
 	"Path of JSON config file")
+
+var mythDB *sql.DB
 
 var vlcUrl chan string
 
@@ -124,11 +136,51 @@ func streamPostHandler() {
 	}
 }
 
+func fillInPlayingTitles() {
+	if mythDB == nil {
+		return
+	}
+	chanIds := []string{}
+	for _, stream := range settings.Streams {
+		if stream.MythChanId != 0 {
+			chanIds = append(chanIds, strconv.Itoa(stream.MythChanId))
+		}
+	}
+	rows, err := mythDB.Query(
+		fmt.Sprintf("SELECT chanid,title,subtitle FROM program "+
+			"WHERE chanid IN (%s) "+
+			"AND starttime <= UTC_TIMESTAMP() "+
+			"AND endtime >= UTC_TIMESTAMP()",
+			strings.Join(chanIds, ",")))
+	if err != nil {
+		log.Print(err)
+		return
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var chanId int
+		var title string
+		var subtitle string
+		if err := rows.Scan(&chanId, &title, &subtitle); err != nil {
+			log.Print(err)
+			return
+		}
+		for _, stream := range settings.Streams {
+			if stream.MythChanId == chanId {
+				stream.PlayingTitle = title
+				stream.PlayingSubtitle = subtitle
+				break
+			}
+		}
+	}
+}
+
 func handleStreams(w http.ResponseWriter, req *http.Request) {
 	log.Print(req.Method, " ", req.URL.Path)
 	segments := strings.Split(req.URL.Path, "/")
 	if req.Method == "GET" {
 		if segments[len(segments)-1] == "streams" {
+			fillInPlayingTitles()
 			enc, err := json.Marshal(settings.Streams)
 			if err != nil {
 				log.Fatal(err)
@@ -185,6 +237,14 @@ func main() {
 	}
 	if err := json.NewDecoder(configFile).Decode(&settings); err != nil {
 		log.Fatal(err)
+	}
+
+	if settings.MythTVDSN != "" {
+		mythDB, err = sql.Open("mysql", settings.MythTVDSN)
+		if err != nil {
+			log.Fatal(err)
+		}
+		log.Print("Connected to MythTV database")
 	}
 
 	vlcUrl = make(chan string)
