@@ -38,7 +38,9 @@ type settingsType struct {
 
 	VideoWidth     int
 	VideoHeight    int
+	VideoCodec     string
 	VideoBitrate   int
+	VideoQuality   int
 	AudioBitrate   int
 	CaptureCacheMs int
 
@@ -60,12 +62,22 @@ var mythDB *sql.DB
 var vlcUrl chan string
 
 func runVlc() {
-	transcodeTmpl, err := template.New("transcode").Parse(
-		"#transcode{threads=3,width={{.VideoWidth}},height={{.VideoHeight}}," +
-			"venc=x264{subme=3,ref=2,bframes=16,b-adapt=1,bpyramid=none,weightp=0}," +
-			"vcodec=h264,vb={{.VideoBitrate}}," +
-			"acodec=mp3,ab={{.AudioBitrate}},samplerate=48000,channels=2}" +
-			":std{access=http,mux=ts,dst={{.ListenHost}}:{{.StreamPort}}}")
+	var transcodeTmplText string
+	if settings.VideoCodec == "ogg" {
+		transcodeTmplText =
+			"#transcode{threads=3,width={{.VideoWidth}},height={{.VideoHeight}}," +
+				"vcodec=theo,venc=theora{quality={{.VideoQuality}}}," +
+				"acodec=vorb,ab={{.AudioBitrate}},samplerate=44100,channels=2}" +
+				":std{access=http,mux=ogg,dst={{.ListenHost}}:{{.StreamPort}}}"
+	} else {
+		transcodeTmplText =
+			"#transcode{threads=3,width={{.VideoWidth}},height={{.VideoHeight}}," +
+				"venc=x264{subme=3,ref=2,bframes=16,b-adapt=1,bpyramid=none,weightp=0}," +
+				"vcodec=h264,vb={{.VideoBitrate}}," +
+				"acodec=mp3,ab={{.AudioBitrate}},samplerate=48000,channels=2}" +
+				":std{access=http,mux=ts,dst={{.ListenHost}}:{{.StreamPort}}}"
+	}
+	transcodeTmpl, err := template.New("transcode").Parse(transcodeTmplText)
 	if err != nil {
 		log.Fatal(err)
 	}
