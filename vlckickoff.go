@@ -1,25 +1,24 @@
 package main
 
 import (
-	"bytes"
 	"database/sql"
 	"encoding/json"
 	"flag"
 	"fmt"
 	auth "github.com/abbot/go-http-auth"
 	_ "github.com/go-sql-driver/mysql"
+	"github.com/obijywk/vlckickoff/video"
 	"log"
 	"net/http"
 	"os"
-	"os/exec"
 	"strconv"
 	"strings"
-	"text/template"
 )
 
 type stream struct {
 	Name       string
-	Url        string
+	Frequency  int
+	Pids       string
 	MythChanId int
 
 	PlayingTitle    string
@@ -34,15 +33,10 @@ type settingsType struct {
 	ExternalHost string
 	ListenHost   string
 	WebPort      int
-	StreamPort   int
 
-	VideoWidth     int
-	VideoHeight    int
-	VideoCodec     string
-	VideoBitrate   int
-	VideoQuality   int
-	AudioBitrate   int
-	CaptureCacheMs int
+	VideoWidth   int
+	VideoHeight  int
+	VideoBitrate int
 
 	AuthRealm string
 	AuthUser  string
@@ -59,69 +53,36 @@ var settingsPath = flag.String("config", "config.json",
 
 var mythDB *sql.DB
 
-var vlcUrl chan string
+var videoHandler *video.VideoHandler
 
-func runVlc() {
-	var transcodeTmplText string
-	if settings.VideoCodec == "ogg" {
-		transcodeTmplText =
-			"#transcode{threads=3,width={{.VideoWidth}},height={{.VideoHeight}}," +
-				"vcodec=theo,venc=theora{quality={{.VideoQuality}}}," +
-				"acodec=vorb,ab={{.AudioBitrate}},samplerate=44100,channels=2}" +
-				":std{access=http,mux=ogg,dst={{.ListenHost}}:{{.StreamPort}}}"
-	} else {
-		transcodeTmplText =
-			"#transcode{threads=3,width={{.VideoWidth}},height={{.VideoHeight}}," +
-				"venc=x264{subme=3,ref=2,bframes=16,b-adapt=1,bpyramid=none,weightp=0}," +
-				"vcodec=h264,vb={{.VideoBitrate}}," +
-				"acodec=mp3,ab={{.AudioBitrate}},samplerate=48000,channels=2}" +
-				":std{access=http,mux=ts,dst={{.ListenHost}}:{{.StreamPort}}}"
-	}
-	transcodeTmpl, err := template.New("transcode").Parse(transcodeTmplText)
-	if err != nil {
-		log.Fatal(err)
-	}
+var streamToPlay chan *stream
 
-	var vlc *exec.Cmd
-	var currentUrl string
-	for url := range vlcUrl {
-		if url == currentUrl {
+func runVideoHandler() {
+	var videoHandlerStream *stream
+	for stp := range streamToPlay {
+		if videoHandlerStream != nil && stp != nil &&
+			stp.Frequency == videoHandlerStream.Frequency &&
+			stp.Pids == videoHandlerStream.Pids {
 			continue
 		}
-		currentUrl = url
-
-		if vlc != nil {
-			log.Print("Stopping VLC")
-			if err := vlc.Process.Kill(); err != nil {
-				log.Print(err)
-			}
-			if _, err := vlc.Process.Wait(); err != nil {
-				log.Print(err)
-			}
-			vlc = nil
+		if videoHandler != nil {
+			videoHandler.Stop()
+			videoHandler = nil
+			videoHandlerStream = nil
 		}
-		if url == "" {
+		if stp == nil {
 			continue
 		}
-
-		log.Print("Starting VLC for ", url)
-		transcode := new(bytes.Buffer)
-		if err := transcodeTmpl.Execute(transcode, settings); err != nil {
-			log.Fatal(err)
+		options := video.VideoHandlerOptions{
+			Frequency:    stp.Frequency,
+			Pids:         stp.Pids,
+			Width:        settings.VideoWidth,
+			Height:       settings.VideoHeight,
+			VideoBitrate: settings.VideoBitrate,
 		}
-		vlc = exec.Command(
-			"vlc",
-			"--ignore-config",
-			"-v",
-			"--no-interact",
-			"--intf=dummy",
-			url,
-			"--sout",
-			transcode.String(),
-			fmt.Sprintf("--live-caching=%d", settings.CaptureCacheMs))
-		if err := vlc.Start(); err != nil {
-			log.Print(err)
-		}
+		videoHandler = video.NewVideoHandler(options)
+		videoHandler.Start()
+		videoHandlerStream = stp
 	}
 }
 
@@ -131,7 +92,9 @@ func streamPostHandler() {
 	for s := range streamPost {
 		var activeStream *stream
 		for _, existingStream := range settings.Streams {
-			if existingStream.Name == s.Name && existingStream.Url == s.Url {
+			if existingStream.Name == s.Name &&
+				existingStream.Frequency == s.Frequency &&
+				existingStream.Pids == s.Pids {
 				existingStream.Active = s.Active
 			} else if s.Active {
 				existingStream.Active = false
@@ -141,9 +104,9 @@ func streamPostHandler() {
 			}
 		}
 		if activeStream != nil {
-			vlcUrl <- activeStream.Url
+			streamToPlay <- activeStream
 		} else {
-			vlcUrl <- ""
+			streamToPlay <- nil
 		}
 	}
 }
@@ -232,12 +195,18 @@ func handleSettings(w http.ResponseWriter, req *http.Request) {
 		settings.VideoWidth = newSettings.VideoWidth
 		settings.VideoHeight = newSettings.VideoHeight
 		settings.VideoBitrate = newSettings.VideoBitrate
-		settings.AudioBitrate = newSettings.AudioBitrate
-		settings.CaptureCacheMs = newSettings.CaptureCacheMs
-		vlcUrl <- ""
+		streamToPlay <- nil
 		streamPost <- stream{}
 	} else {
 		http.Error(w, "Method not allowed", 405)
+	}
+}
+
+func handleWebm(w http.ResponseWriter, req *http.Request) {
+	if videoHandler != nil {
+		videoHandler.ServeHTTP(w, req)
+	} else {
+		http.Error(w, "Stream not started", 404)
 	}
 }
 
@@ -259,15 +228,15 @@ func main() {
 		log.Print("Connected to MythTV database")
 	}
 
-	vlcUrl = make(chan string)
-	go runVlc()
+	streamToPlay = make(chan *stream)
+	go runVideoHandler()
 	streamPost = make(chan stream)
 	go streamPostHandler()
 
-	mux := http.NewServeMux()
-	mux.HandleFunc("/streams", handleStreams)
-	mux.HandleFunc("/settings", handleSettings)
-	mux.Handle("/", http.FileServer(http.Dir(settings.StaticFilesPath)))
+	secureMux := http.NewServeMux()
+	secureMux.HandleFunc("/streams", handleStreams)
+	secureMux.HandleFunc("/settings", handleSettings)
+	secureMux.Handle("/", http.FileServer(http.Dir(settings.StaticFilesPath)))
 
 	var handler http.Handler
 	if settings.AuthRealm != "" && settings.AuthUser != "" && settings.AuthPass != "" {
@@ -280,15 +249,19 @@ func main() {
 			})
 		handler = auth.JustCheck(authenticator,
 			func(w http.ResponseWriter, req *http.Request) {
-				mux.ServeHTTP(w, req)
+				secureMux.ServeHTTP(w, req)
 			})
 	} else {
-		handler = mux
+		handler = secureMux
 	}
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/webm", handleWebm)
+	mux.Handle("/", handler)
 
 	s := &http.Server{
 		Addr:    fmt.Sprintf(":%d", settings.WebPort),
-		Handler: handler,
+		Handler: mux,
 	}
 	log.Print("HTTP listening on port ", settings.WebPort)
 	log.Fatal(s.ListenAndServe())

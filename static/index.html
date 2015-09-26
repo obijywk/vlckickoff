@@ -21,6 +21,12 @@
 #container {
   max-width: 400px;
 }
+@media only screen and (max-width:768px) {
+  #videoplayer {
+    display: none;
+    visibility: hidden;
+  }
+}
 </style>
 
 </head>
@@ -135,7 +141,7 @@
 
     <paper-action-dialog id="watchDialog" backdrop autoCloseDisabled>
       <p>Copy the following URL into VLC (or another streaming app).</p>
-      <p>http://{{settings.ExternalHost}}:{{settings.StreamPort}}/</p>
+      <p>http://{{settings.ExternalHost}}:{{settings.WebPort}}/webm</p>
       <paper-button affirmative autofocus>Close</paper-button>
     </paper-action-dialog>
   </template>
@@ -143,7 +149,7 @@
     Polymer({
       created: function() {
         this.videoBitrateOptions =
-            ['250','400','600','800','1000','1500','2000'];
+            ['250','400','600','800','1000','1200','1500','2000'];
         this.videoResolutionOptions =
             ['480x270','640x360','960x540','1280x720'];
       },
@@ -189,8 +195,8 @@
           window.open("intent://" +
               this.settings.ExternalHost +
               ":" +
-              this.settings.StreamPort +
-              "/#Intent;scheme=http;type=video/mp2t;end");
+              this.settings.WebPort +
+              "/webm#Intent;scheme=http;type=video/webm;end");
         } else {
           this.$.watchDialog.toggle();
         }
@@ -203,8 +209,13 @@
 </polymer-element>
 
 <body unresolved>
-<div vertical layout id="container">
-  <streams-ui></streams-ui>
+<div horizontal layout>
+  <div flex id="container">
+    <streams-ui flex></streams-ui>
+  </div>
+  <video controls flex id="videoplayer" preload="none">
+    <source src="/webm" type="video/webm">
+  </video>
 </div>
 </body>
 </html>
